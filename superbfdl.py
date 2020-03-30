@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 from zipfile import ZipFile
+from pathlib import Path
 
 import requests
 from selenium import webdriver
@@ -30,6 +31,7 @@ def get_lates_bios(board_model):
         for line in raw:
             if "BIOS Revision:" in line:
                 bios_version = line.split(":")[1].replace("R", "").strip()
+                bios_version = bios_version.lstrip('.').strip()
                 a = driver.find_element_by_partial_link_text(".zip")
                 filename = a.text
                 software_id = a.get_attribute("href").split("=")[-1]
@@ -39,6 +41,7 @@ def get_lates_bios(board_model):
 
                 if bios_version and bios_dl_link:
                     return (bios_dl_link, bios_version)
+
     except NoSuchElementException as err:
         print(f"[!] Could not find valid bios link for board {board_model}")
         print(err.msg)
@@ -55,7 +58,7 @@ def get_lates_bmc_firmware(board_model):
         raw = driver.find_element_by_class_name("yui-skin-sam").text.split("\n")
         for line in raw:
             if "Firmware Revision:" in line:
-                bios_version = line.split(":")[1].replace("R", "").strip()
+                bios_version = line.split(":")[1].replace("R", "").lstrip('.').strip()
                 a = driver.find_element_by_partial_link_text(".zip")
                 filename = a.text
                 software_id = a.get_attribute("href").split("=")[-1]
@@ -65,6 +68,8 @@ def get_lates_bmc_firmware(board_model):
 
                 if bios_version and bios_dl_link:
                     return (bios_dl_link, bios_version)
+                else:
+                    return (None, None)
     except NoSuchElementException as err:
         print(f"Could not find valid bmc firmware link for board {board_model}")
         print(err.msg)
@@ -80,10 +85,19 @@ def download_file(url, dl_path):
         with open(file_path, "wb") as bfile:
             for chunk in resp.iter_content(chunk_size=1024):
                 bfile.write(chunk)
-        print("[*] Download finished")
+        # print("[*] Download finished")
         return file_name
     else:
         return None
+
+
+def write_version(output_dir, version):
+    try:
+        file_name = os.path.join(output_dir, "version.txt")
+        with open(file_name, 'w') as vfile:
+            vfile.writelines(version)
+    except OSError as e:
+        print("Error: %s" % e)
 
 
 def mk_board_dir(path):
@@ -116,21 +130,24 @@ def extract_zip(zipfile="", path_from_local=""):
         try:
             if name[-4:] == ".zip":
                 extract_zip(zipfile=name, path_from_local=extract_path)
-        except:
+        except:  # noqa
             print("[!] Failed on", name)
             pass
     return extract_path
 
 
-def download_bios(board_model):
+def download_bios(board_model, output_dir):
     try:
         dl_path = f"/tmp/downloads/{board_model}/"
+        board_path = Path(f"{output_dir}/{board_model}")
         latest_bios = get_lates_bios(board_model)
         if latest_bios is None:
             return
         mk_board_dir(dl_path)
         url, version = latest_bios
         print(f"[*] Found bios version {version} for board {board_model}")
+
+        print(f"[*] BIOS VERSION: {version}")
         bios_zip = download_file(url, dl_path)
 
         # Extract
@@ -138,42 +155,51 @@ def download_bios(board_model):
         extract_zip(bios_zip, dl_path)
 
         # Locate and move
-        bios_path = f"/tmp/supermicro/{board_model}/bios"
+        bios_path = os.path.join(board_path, "bios")
+        if os.path.exists(bios_path):
+            shutil.rmtree(bios_path)
+
         print(f"[*] Moving the single BIOS file to {bios_path}")
         mk_board_dir(bios_path)
         biosfile = locate_and_move(dl_path, bios_path, BIOS_FILENAME_PATTERN)
         if biosfile:
             print(f"[*] The new bios is located at {biosfile}")
-            return biosfile
+            return (version, biosfile)
         return None
     except Exception as err:
         print(err)
         return None
 
 
-def download_bmc_firmware(board_model):
+def download_bmc_firmware(board_model, output_dir):
     try:
         dl_path = f"/tmp/downloads/{board_model}/"
+        board_path = Path(f"{output_dir}/{board_model}")
         latest_bmc = get_lates_bmc_firmware(board_model)
         if latest_bmc is None:
             return
         mk_board_dir(dl_path)
         url, version = latest_bmc
         print(f"[*] Found BMC Firmware version {version} for board {board_model}")
+
+        print(f"[*] BMC VERSION: {version}")
         bmc_zip = download_file(url, dl_path)
 
         # Extract
         print(f"[*] Extracting {bmc_zip} ...")
         extract_zip(bmc_zip, dl_path)
 
-        # Locate and move
-        bmc_path = f"/tmp/supermicro/{board_model}/bmc"
+        # We only store one file version in the output dir
+        bmc_path = os.path.join(board_path, "bmc")
+        if os.path.exists(bmc_path):
+            shutil.rmtree(bmc_path)
+
         print(f"[*] Moving the single BMC Firmware file to {bmc_path}")
         mk_board_dir(bmc_path)
         bmcfile = locate_and_move(dl_path, bmc_path, BMC_FILENAME_PATTERN)
         if bmcfile:
             print(f"[*] The new bios is located at {bmcfile}")
-            return bmcfile
+            return (version, bmcfile)
         return None
     except Exception as err:
         print(err)
@@ -181,43 +207,72 @@ def download_bmc_firmware(board_model):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Utility to download most recent BIOS & BMC Firmware from supermicro website"  # noqa
+    )
+    parser.add_argument("-b", "--board", help="Motherboard Model")
+    parser.add_argument(
+        "-f", "--file", help="TextFile containing a list of Boards")
+    parser.add_argument(
+        "-p", "--path", help="Path to where to save the downloaded bios/ipmi")  # noqa
+    args = parser.parse_args()
+    if not args.path:
+        args.path = "."
+    output_dir = Path(args.path)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # browser object
     options = Options()
     options.headless = True
     driver = webdriver.Firefox(options=options)
 
-    parser = argparse.ArgumentParser(
-        description="Utility to download most recent BIOS & BMC Firmware from supermicro website"
-    )
-    parser.add_argument("-b", "--board", help="Motherboard Model")
-    parser.add_argument("-f", "--file", help="TextFile containing a list of Boards")
-    args = parser.parse_args()
-
     if args.board:
         board = args.board
         print(f"[*] Searching for latest BIOS for {board}")
-        download_bios(board)
+        bios = download_bios(board, output_dir)
+        version_info = []
+        if bios:
+            bios_version, _ = bios
+            version_info.append(f'BIOS={bios_version}\n')
+        else:
+            print("Could not find a BIOS version online.")
         print("*" * 50)
         print(f"[*] Searching for latest BMC Firmware for {board}")
-        download_bmc_firmware(board)
-        print("[*] Process finished!")
+        bmc = download_bmc_firmware(board, output_dir)
+        if bmc:
+            bmc_version, _ = bmc
+            version_info.append(f'IPMI={bmc_version}\n')
+        else:
+            print("Could not find a BMC firmware online.")
+
+        print("Writing version information ...")
+        board_path = Path(f"{output_dir}/{board}")
+        write_version(board_path, version_info)
     elif args.file:
         filename = args.file
         try:
             if not os.path.isfile(filename):
                 raise argparse.ArgumentTypeError(f"File {filename} does not exists.")
             with open(filename, "r") as f:
-                num_files = 1
-                for line in f:
+                for num_files, line in enumerate(f):
                     board = line.strip()
-                    print(
-                        f"{num_files}: [*] Downloading BIOS and BMC Firmware for Board Model {board}"
-                    )
-                    download_bios(board)
-                    download_bmc_firmware(board)
-                    num_files += 1
+                    print("Board #%s" % (num_files+1))
+                    print("[*] Downloading BIOS and BMC Firmware for "
+                          "Board Model %s" % board)
+                    bios = download_bios(board, output_dir)
+                    bmc = download_bmc_firmware(board, output_dir)
+                    version_info = []
+                    if bios:
+                        bios_version, _ = bios
+                        version_info.append(f'BIOS={bios_version}\n')
+                    if bmc:
+                        bmc_version, _ = bmc
+                        version_info.append(f'IPMI={bmc_version}\n')
+                    board_path = Path(f"{output_dir}/{board}")
+                    write_version(board_path, version_info)
         except Exception as e:
-            print(e.args)
+            print(e)
         else:
             print("Process finished sucessfull!")
-
     driver.close()
