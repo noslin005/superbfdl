@@ -17,7 +17,7 @@ BMC_FILENAME_PATTERN = r"^[\w\-. ]+\.(bin|BIN)$"
 # Match
 # H11SSL9.808_D32
 # H11DSTB9.729
-BIOS_FILENAME_PATTERN = r"^[\w\-. ]+\.([A-Da-d]\d{2}|\d{3}|\d{3}_\w{3})$"
+BIOS_FILENAME_PATTERN = r"^[\w\-. ]+\.([A-Da-d]\d{2}|\d{3}|\d{3}_\w{3}|\w{3}_\w{3})$"
 
 
 def get_lates_bios(board_model):
@@ -27,7 +27,8 @@ def get_lates_bios(board_model):
         driver.find_element_by_xpath(
             '//a[@href="{0}"]'.format("javascript:document.biosForm.submit();")
         ).click()
-        raw = driver.find_element_by_class_name("yui-skin-sam").text.split("\n")
+        raw = driver.find_element_by_class_name(
+            "yui-skin-sam").text.split("\n")
         for line in raw:
             if "BIOS Revision:" in line:
                 bios_version = line.split(":")[1].replace("R", "").strip()
@@ -55,10 +56,12 @@ def get_lates_bmc_firmware(board_model):
         driver.find_element_by_xpath(
             '//a[@href="{0}"]'.format("javascript:document.IPMIForm.submit();")
         ).click()
-        raw = driver.find_element_by_class_name("yui-skin-sam").text.split("\n")
+        raw = driver.find_element_by_class_name(
+            "yui-skin-sam").text.split("\n")
         for line in raw:
             if "Firmware Revision:" in line:
-                bios_version = line.split(":")[1].replace("R", "").lstrip('.').strip()
+                bios_version = line.split(":")[1].replace(
+                    "R", "").lstrip('.').strip()
                 a = driver.find_element_by_partial_link_text(".zip")
                 filename = a.text
                 software_id = a.get_attribute("href").split("=")[-1]
@@ -71,7 +74,8 @@ def get_lates_bmc_firmware(board_model):
                 else:
                     return (None, None)
     except NoSuchElementException as err:
-        print(f"Could not find valid bmc firmware link for board {board_model}")
+        print(
+            f"Could not find valid bmc firmware link for board {board_model}")
         print(err.msg)
         return None
 
@@ -180,7 +184,8 @@ def download_bmc_firmware(board_model, output_dir):
             return
         mk_board_dir(dl_path)
         url, version = latest_bmc
-        print(f"[*] Found BMC Firmware version {version} for board {board_model}")
+        print(
+            f"[*] Found BMC Firmware version {version} for board {board_model}")
 
         print(f"[*] BMC VERSION: {version}")
         bmc_zip = download_file(url, dl_path)
@@ -198,7 +203,7 @@ def download_bmc_firmware(board_model, output_dir):
         mk_board_dir(bmc_path)
         bmcfile = locate_and_move(dl_path, bmc_path, BMC_FILENAME_PATTERN)
         if bmcfile:
-            print(f"[*] The new bios is located at {bmcfile}")
+            print(f"[*] The new BMC Firmware is located at {bmcfile}")
             return (version, bmcfile)
         return None
     except Exception as err:
@@ -210,11 +215,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Utility to download most recent BIOS & BMC Firmware from supermicro website"  # noqa
     )
-    parser.add_argument("-b", "--board", help="Motherboard Model")
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "-b", "--board", help="Motherboard Model")
+    group.add_argument(
         "-f", "--file", help="TextFile containing a list of Boards")
     parser.add_argument(
-        "-p", "--path", help="Path to where to save the downloaded bios/ipmi")  # noqa
+        "-p", "--path",
+        help="Path to where to save the downloaded bios/ipmi")
     args = parser.parse_args()
     if not args.path:
         args.path = "."
@@ -246,14 +254,15 @@ if __name__ == "__main__":
         else:
             print("Could not find a BMC firmware online.")
 
-        print("Writing version information ...")
+        print("[*] Writing version information ...")
         board_path = Path(f"{output_dir}/{board}")
         write_version(board_path, version_info)
     elif args.file:
         filename = args.file
         try:
             if not os.path.isfile(filename):
-                raise argparse.ArgumentTypeError(f"File {filename} does not exists.")
+                raise argparse.ArgumentTypeError(
+                    f"File {filename} does not exists.")
             with open(filename, "r") as f:
                 for num_files, line in enumerate(f):
                     board = line.strip()
