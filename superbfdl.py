@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# -*- encoding: utf8 -*-
+
+"""
+Utility to download Supermicro BIOS and BMC Firmware
+"""
 import argparse
 import os
 import re
@@ -11,6 +16,7 @@ from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.firefox.options import Options
 
+__author__ = "Nilson Lopes"
 
 # BMC_FILENAME_PATTERN = r"^[\w,\s-]+\.(bin|BIN)$"
 BMC_FILENAME_PATTERN = r"^[\w\-. ]+\.(bin|BIN)$"
