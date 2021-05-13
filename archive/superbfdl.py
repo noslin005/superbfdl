@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- encoding: utf8 -*-
-
 """
 Utility to download Supermicro BIOS and BMC Firmware
 """
@@ -30,11 +29,10 @@ def get_lates_bios(board_model):
     try:
         link = f"https://www.supermicro.com/en/products/motherboard/{board_model}"
         driver.get(link)
-        driver.find_element_by_xpath(
-            '//a[@href="{0}"]'.format("javascript:document.biosForm.submit();")
-        ).click()
-        raw = driver.find_element_by_class_name(
-            "yui-skin-sam").text.split("\n")
+        driver.find_element_by_xpath('//a[@href="{0}"]'.format(
+            "javascript:document.biosForm.submit();")).click()
+        raw = driver.find_element_by_class_name("yui-skin-sam").text.split(
+            "\n")
         for line in raw:
             if "BIOS Revision:" in line:
                 bios_version = line.split(":")[1].replace("R", "").strip()
@@ -43,8 +41,7 @@ def get_lates_bios(board_model):
                 filename = a.text
                 software_id = a.get_attribute("href").split("=")[-1]
                 bios_dl_link = "https://www.supermicro.com/Bios/softfiles/{0}/{1}".format(
-                    software_id, filename
-                )
+                    software_id, filename)
 
                 if bios_version and bios_dl_link:
                     return (bios_dl_link, bios_version)
@@ -59,11 +56,11 @@ def get_lates_bmc_firmware(board_model):
     try:
         link = f"https://www.supermicro.com/en/products/motherboard/{board_model}"
         driver.get(link)
-        driver.find_element_by_xpath(
-            '//a[@href="{0}"]'.format("javascript:document.IPMIForm.submit();")
-        ).click()
-        raw = driver.find_element_by_class_name(
-            "yui-skin-sam").text.split("\n")
+        driver.implicitly_wait(20)
+        driver.find_element_by_xpath('//a[@href="{0}"]'.format(
+            "javascript:document.IPMIForm.submit();")).click()
+        raw = driver.find_element_by_class_name("yui-skin-sam").text.split(
+            "\n")
         for line in raw:
             if "Firmware Revision:" in line:
                 bios_version = line.split(":")[1].replace(
@@ -72,8 +69,7 @@ def get_lates_bmc_firmware(board_model):
                 filename = a.text
                 software_id = a.get_attribute("href").split("=")[-1]
                 bios_dl_link = "https://www.supermicro.com/Bios/softfiles/{0}/{1}".format(
-                    software_id, filename
-                )
+                    software_id, filename)
 
                 if bios_version and bios_dl_link:
                     return (bios_dl_link, bios_version)
@@ -191,7 +187,8 @@ def download_bmc_firmware(board_model, output_dir):
         mk_board_dir(dl_path)
         url, version = latest_bmc
         print(
-            f"[*] Found BMC Firmware version {version} for board {board_model}")
+            f"[*] Found BMC Firmware version {version} for board {board_model}"
+        )
 
         print(f"[*] BMC VERSION: {version}")
         bmc_zip = download_file(url, dl_path)
@@ -219,16 +216,17 @@ def download_bmc_firmware(board_model, output_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Utility to download most recent BIOS & BMC Firmware from supermicro website"  # noqa
+        description=
+        "Utility to download most recent BIOS & BMC Firmware from supermicro website"  # noqa
     )
     group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        "-b", "--board", help="Motherboard Model")
-    group.add_argument(
-        "-f", "--file", help="TextFile containing a list of Boards")
-    parser.add_argument(
-        "-p", "--path",
-        help="Path to where to save the downloaded bios/ipmi")
+    group.add_argument("-b", "--board", help="Motherboard Model")
+    group.add_argument("-f",
+                       "--file",
+                       help="TextFile containing a list of Boards")
+    parser.add_argument("-p",
+                        "--path",
+                        help="Path to where to save the downloaded bios/ipmi")
     args = parser.parse_args()
     if not args.path:
         args.path = "."
@@ -238,9 +236,11 @@ if __name__ == "__main__":
 
     # browser object
     options = Options()
-    options.headless = True
-    driver = webdriver.Firefox(options=options)
+    # options.headless = True
+    driver = webdriver.Firefox(executable_path="/usr/bin/geckodriver")
 
+    driver.maximize_window()
+    driver.implicitly_wait(20)
     if args.board:
         board = args.board
         print(f"[*] Searching for latest BIOS for {board}")
@@ -272,7 +272,7 @@ if __name__ == "__main__":
             with open(filename, "r") as f:
                 for num_files, line in enumerate(f):
                     board = line.strip()
-                    print("Board #%s" % (num_files+1))
+                    print("Board #%s" % (num_files + 1))
                     print("[*] Downloading BIOS and BMC Firmware for "
                           "Board Model %s" % board)
                     bios = download_bios(board, output_dir)
