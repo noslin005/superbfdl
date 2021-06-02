@@ -3,7 +3,6 @@
 
 import logging
 import re
-import sys
 
 import requests
 from bs4 import BeautifulSoup
@@ -108,7 +107,6 @@ def get_board_info(board_model, product_id, fw_type):
         if 'Firmware Release Note' in key:
             data['ipmi_release_note'] = value
 
-    data['ipmi_version'] = results.get('IPMI Firmware Revision')
     data['download_url'] = results['download_url']
     data['product_id'] = product_id
     data['board_model'] = board_model
@@ -117,7 +115,7 @@ def get_board_info(board_model, product_id, fw_type):
     # we can retrieve this information from the release note file
     # i.e. X11DPU_BMCFW_1_73_06_release_notes.pdf has release info
     # 1.73.06
-    if data.get('bundle') is True and not data.get('ipmi_revision'):
+    if fw_type == 'ipmi' and data.get('ipmi_revision') is False:
         if not data.get('ipmi_revision'):
             release_note = data['ipmi_release_note']
             release_parts = [d for d in release_note.split('_') if d.isdigit()]

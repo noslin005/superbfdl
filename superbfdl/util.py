@@ -90,3 +90,7 @@ def extract_zip(zipfile="", path_from_local=""):
             sys.stderr.write(f'Error while extracting {name}\n')
             pass
     return extract_path
+
+
+def download_extract(file):
+    pass
